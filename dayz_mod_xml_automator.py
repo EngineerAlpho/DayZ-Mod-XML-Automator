@@ -28,10 +28,23 @@ class DayZXMLAutomator:
             default_config = {
                 "backup_enabled": True,
                 "backup_folder": "./backups",
-                "xml_paths": {
-                    "types": "./mpmissions/dayzOffline.chernarusplus/db/types.xml",
-                    "events": "./mpmissions/dayzOffline.chernarusplus/cfgeventspawns.xml",
-                    "spawnabletypes": "./mpmissions/dayzOffline.chernarusplus/db/spawnabletypes.xml"
+                "active_mission": "dayzOffline.chernarusplus",
+                "missions": {
+                    "dayzOffline.chernarusplus": {
+                        "types": "./mpmissions/dayzOffline.chernarusplus/db/types.xml",
+                        "events": "./mpmissions/dayzOffline.chernarusplus/cfgeventspawns.xml",
+                        "spawnabletypes": "./mpmissions/dayzOffline.chernarusplus/db/spawnabletypes.xml"
+                    },
+                    "dayzOffline.enoch": {
+                        "types": "./mpmissions/dayzOffline.enoch/db/types.xml",
+                        "events": "./mpmissions/dayzOffline.enoch/cfgeventspawns.xml",
+                        "spawnabletypes": "./mpmissions/dayzOffline.enoch/db/spawnabletypes.xml"
+                    },
+                    "dayzOffline.sakhal": {
+                        "types": "./mpmissions/dayzOffline.sakhal/db/types.xml",
+                        "events": "./mpmissions/dayzOffline.sakhal/cfgeventspawns.xml",
+                        "spawnabletypes": "./mpmissions/dayzOffline.sakhal/db/spawnabletypes.xml"
+                    }
                 },
                 "mod_folders": [
                     "@DayZ-Expansion-Weapons",
@@ -99,6 +112,36 @@ class DayZXMLAutomator:
         with open(self.config_file, 'w') as f:
             json.dump(config, f, indent=4)
         print(f"✓ Configuration saved to {self.config_file}")
+    
+    def get_xml_paths(self):
+        """Get XML paths for the active mission"""
+        active_mission = self.config.get("active_mission", "dayzOffline.chernarusplus")
+        return self.config["missions"].get(active_mission, {})
+    
+    def list_missions(self):
+        """List all configured missions"""
+        return list(self.config["missions"].keys())
+    
+    def set_active_mission(self, mission_name):
+        """Set the active mission"""
+        if mission_name in self.config["missions"]:
+            self.config["active_mission"] = mission_name
+            self.save_config()
+            print(f"✓ Active mission set to: {mission_name}")
+            return True
+        else:
+            print(f"✗ Mission '{mission_name}' not found in configuration")
+            return False
+    
+    def add_mission(self, mission_name, types_path, events_path, spawnabletypes_path):
+        """Add a new mission to configuration"""
+        self.config["missions"][mission_name] = {
+            "types": types_path,
+            "events": events_path,
+            "spawnabletypes": spawnabletypes_path
+        }
+        self.save_config()
+        print(f"✓ Added mission: {mission_name}")
     
     def backup_xml(self, xml_path):
         """Create a backup of XML file"""
@@ -217,7 +260,13 @@ class DayZXMLAutomator:
     
     def update_types_xml(self, new_items):
         """Update types.xml with new items"""
-        xml_path = self.config["xml_paths"]["types"]
+        xml_paths = self.get_xml_paths()
+        xml_path = xml_paths.get("types")
+        
+        if not xml_path:
+            print("✗ No types.xml path configured for active mission")
+            return 0
+        
         self.backup_xml(xml_path)
         
         root = self.load_existing_xml(xml_path)
@@ -252,7 +301,13 @@ class DayZXMLAutomator:
             print("Vehicle events disabled in config")
             return 0
         
-        xml_path = self.config["xml_paths"]["events"]
+        xml_paths = self.get_xml_paths()
+        xml_path = xml_paths.get("events")
+        
+        if not xml_path:
+            print("✗ No events.xml path configured for active mission")
+            return 0
+        
         self.backup_xml(xml_path)
         
         root = self.load_existing_xml(xml_path)
@@ -289,7 +344,17 @@ class DayZXMLAutomator:
         """
         print("\n" + "="*50)
         print("Adding items to XMLs...")
+        print(f"Active Mission: {self.config.get('active_mission', 'Not set')}")
         print("="*50)
+        
+        xml_paths = self.get_xml_paths()
+        if not xml_paths:
+            print("✗ No XML paths configured for active mission!")
+            return
+        
+        print(f"\nTarget XMLs:")
+        print(f"  types.xml: {xml_paths.get('types', 'Not configured')}")
+        print(f"  events.xml: {xml_paths.get('events', 'Not configured')}")
         
         # Update types.xml
         self.update_types_xml(items_dict)
@@ -305,6 +370,31 @@ class DayZXMLAutomator:
         print("\n" + "="*50)
         print("DayZ Mod XML Automator - Interactive Mode")
         print("="*50)
+        
+        # Show and optionally change active mission
+        print(f"\nCurrent active mission: {self.config.get('active_mission', 'Not set')}")
+        print("\nAvailable missions:")
+        missions = self.list_missions()
+        for i, mission in enumerate(missions, 1):
+            marker = "←" if mission == self.config.get('active_mission') else ""
+            print(f"  {i}. {mission} {marker}")
+        
+        change_mission = input("\nChange active mission? (y/n): ").strip().lower()
+        if change_mission == 'y':
+            choice = input(f"Select mission (1-{len(missions)}) or enter custom name: ").strip()
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(missions):
+                    self.set_active_mission(missions[idx])
+            except ValueError:
+                # Custom mission name entered
+                if choice:
+                    print(f"\nAdding new mission: {choice}")
+                    types_path = input("Enter types.xml path: ").strip()
+                    events_path = input("Enter events.xml path: ").strip()
+                    spawnable_path = input("Enter spawnabletypes.xml path: ").strip()
+                    self.add_mission(choice, types_path, events_path, spawnable_path)
+                    self.set_active_mission(choice)
         
         items_dict = {"weapons": [], "vehicles": [], "items": []}
         
@@ -364,11 +454,13 @@ def main():
     print("="*50)
     print("DayZ Mod XML Automator")
     print("="*50)
+    print(f"\nActive Mission: {automator.config.get('active_mission', 'Not set')}")
     print("\nOptions:")
     print("1. Interactive mode (manually enter classnames)")
     print("2. Add from JSON file")
-    print("3. Edit configuration")
-    print("4. Exit")
+    print("3. Manage missions (add/switch/view)")
+    print("4. Edit configuration")
+    print("5. Exit")
     
     choice = input("\nSelect option: ").strip()
     
@@ -385,14 +477,144 @@ def main():
             print(f"File not found: {json_file}")
     
     elif choice == "3":
+        manage_missions(automator)
+    
+    elif choice == "4":
         print("\nCurrent configuration saved in:", automator.config_file)
         print("Edit the file manually and restart the script.")
     
-    elif choice == "4":
+    elif choice == "5":
         print("Goodbye!")
     
     else:
         print("Invalid choice.")
+
+
+def manage_missions(automator):
+    """Mission management submenu"""
+    while True:
+        print("\n" + "="*50)
+        print("Mission Management")
+        print("="*50)
+        print(f"\nActive Mission: {automator.config.get('active_mission', 'Not set')}")
+        print("\nConfigured Missions:")
+        
+        missions = automator.list_missions()
+        for i, mission in enumerate(missions, 1):
+            marker = " ← ACTIVE" if mission == automator.config.get('active_mission') else ""
+            print(f"  {i}. {mission}{marker}")
+            paths = automator.config["missions"][mission]
+            print(f"     types: {paths.get('types', 'N/A')}")
+            print(f"     events: {paths.get('events', 'N/A')}")
+        
+        print("\nOptions:")
+        print("1. Switch active mission")
+        print("2. Add new mission")
+        print("3. Remove mission")
+        print("4. Edit mission paths")
+        print("5. Apply to all missions")
+        print("6. Back to main menu")
+        
+        choice = input("\nSelect option: ").strip()
+        
+        if choice == "1":
+            print("\nSelect mission:")
+            for i, mission in enumerate(missions, 1):
+                print(f"  {i}. {mission}")
+            try:
+                idx = int(input("Enter number: ").strip()) - 1
+                if 0 <= idx < len(missions):
+                    automator.set_active_mission(missions[idx])
+            except (ValueError, IndexError):
+                print("Invalid selection")
+        
+        elif choice == "2":
+            mission_name = input("\nEnter mission name (e.g., dayzOffline.enoch): ").strip()
+            if mission_name:
+                types_path = input("Enter types.xml path: ").strip()
+                events_path = input("Enter events.xml path: ").strip()
+                spawnable_path = input("Enter spawnabletypes.xml path: ").strip()
+                automator.add_mission(mission_name, types_path, events_path, spawnable_path)
+        
+        elif choice == "3":
+            print("\nSelect mission to remove:")
+            for i, mission in enumerate(missions, 1):
+                print(f"  {i}. {mission}")
+            try:
+                idx = int(input("Enter number: ").strip()) - 1
+                if 0 <= idx < len(missions):
+                    mission_to_remove = missions[idx]
+                    confirm = input(f"Remove '{mission_to_remove}'? (y/n): ").strip().lower()
+                    if confirm == 'y':
+                        del automator.config["missions"][mission_to_remove]
+                        if automator.config.get("active_mission") == mission_to_remove:
+                            remaining = automator.list_missions()
+                            if remaining:
+                                automator.config["active_mission"] = remaining[0]
+                        automator.save_config()
+                        print(f"✓ Removed mission: {mission_to_remove}")
+            except (ValueError, IndexError):
+                print("Invalid selection")
+        
+        elif choice == "4":
+            print("\nSelect mission to edit:")
+            for i, mission in enumerate(missions, 1):
+                print(f"  {i}. {mission}")
+            try:
+                idx = int(input("Enter number: ").strip()) - 1
+                if 0 <= idx < len(missions):
+                    mission_name = missions[idx]
+                    print(f"\nEditing: {mission_name}")
+                    print("Leave blank to keep current value")
+                    
+                    current = automator.config["missions"][mission_name]
+                    types_path = input(f"types.xml [{current['types']}]: ").strip()
+                    events_path = input(f"events.xml [{current['events']}]: ").strip()
+                    spawnable_path = input(f"spawnabletypes.xml [{current['spawnabletypes']}]: ").strip()
+                    
+                    if types_path:
+                        current['types'] = types_path
+                    if events_path:
+                        current['events'] = events_path
+                    if spawnable_path:
+                        current['spawnabletypes'] = spawnable_path
+                    
+                    automator.save_config()
+                    print("✓ Mission updated")
+            except (ValueError, IndexError):
+                print("Invalid selection")
+        
+        elif choice == "5":
+            print("\nApply items to ALL missions:")
+            print("This will add the items to types.xml and events.xml for EVERY configured mission.")
+            confirm = input("Continue? (y/n): ").strip().lower()
+            
+            if confirm == 'y':
+                json_file = input("Enter JSON file path with items: ").strip()
+                if os.path.exists(json_file):
+                    with open(json_file, 'r') as f:
+                        items_dict = json.load(f)
+                    
+                    original_mission = automator.config.get('active_mission')
+                    
+                    for mission in missions:
+                        print(f"\n{'='*50}")
+                        print(f"Processing: {mission}")
+                        print(f"{'='*50}")
+                        automator.set_active_mission(mission)
+                        automator.add_items_from_list(items_dict)
+                    
+                    # Restore original active mission
+                    automator.set_active_mission(original_mission)
+                    print("\n✓ Items added to all missions!")
+                else:
+                    print(f"File not found: {json_file}")
+        
+        elif choice == "6":
+            break
+        
+        else:
+            print("Invalid choice.")
 
 
 if __name__ == "__main__":
