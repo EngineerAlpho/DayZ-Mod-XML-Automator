@@ -15,13 +15,35 @@
 ```
 Your Mod Folder:
   @DayZ-Expansion-Weapons/
-    ├── types.xml          ← Script finds this
-    └── cfgeventspawns.xml ← Script finds this
+    ├── Any folder structure         ← Script searches EVERYTHING
+    │   ├── types.xml                ← Finds this
+    │   └── subfolder/
+    │       └── cfgeventspawns.xml   ← Finds this too
+    └── Another_Random_Folder/
+        └── MyTypes.xml              ← Finds this (if it contains <types>)
 
 Your Server:
   mpmissions/dayzOffline.chernarusplus/db/
     └── types.xml          ← Script merges into this
 ```
+
+The script intelligently searches **every subdirectory** in the mod folder and identifies XML files by their **content**, not their filename or location. This means it works with ANY mod structure, regardless of how the mod author organized their files.
+
+### Intelligent XML Detection
+
+Instead of looking for specific filenames or paths, the script:
+- Recursively searches for **all .xml files** in the mod folder
+- Reads the first few lines of each file
+- Identifies the file type by its XML structure:
+  - Contains `<types>` or `<type name=` → types.xml
+  - Contains `<eventposdef>` or `<event name=` → events.xml
+  - Contains `<spawnabletypes>` → spawnabletypes.xml
+
+This works with:
+- ✅ Any folder structure (xml/, XML/, Server Files/, Documentation/, etc.)
+- ✅ Any filename (types.xml, Types.xml, MyModTypes.xml, etc.)
+- ✅ Windows or Linux naming conventions
+- ✅ Messy mod structures with files in random locations
 
 ## Quick Start
 
@@ -199,42 +221,81 @@ If you already merged a mod, but the mod author updated their types.xml:
 # Run merge with "overwrite_existing": false
 ```
 
-## Typical Mod Folder Structures
+## How the Script Finds XMLs
 
-The script automatically detects these patterns:
+The script uses **intelligent content-based detection** instead of searching for specific filenames or paths. It:
 
+1. Recursively searches **every folder** in the mod directory
+2. Finds **all .xml files** regardless of name or location
+3. Reads the content to identify the file type
+4. Works with **any mod structure** - no matter how messy!
+
+### Examples of Structures It Handles
+
+**Standard structure:**
 ```
 @ModName/
-├── types.xml                    ✓ Found
-└── cfgeventspawns.xml          ✓ Found
+├── types.xml                    ✓ Found by content
+└── cfgeventspawns.xml          ✓ Found by content
+```
 
+**Nested structure:**
+```
 @ModName/
 ├── db/
-│   └── types.xml               ✓ Found
-└── cfgeventspawns.xml          ✓ Found
+│   └── types.xml               ✓ Found by content
+└── cfgeventspawns.xml          ✓ Found by content
+```
 
+**Random Windows structure:**
+```
+@ModName/
+├── Server Files/
+│   └── Types.xml               ✓ Found by content (any case)
+└── Documentation/
+    └── Events.xml              ✓ Found by content
+```
+
+**Deep nesting:**
+```
 @ModName/
 └── mission/
     └── db/
-        └── types.xml           ✓ Found
+        └── types.xml           ✓ Found by content
 ```
+
+**Custom naming:**
+```
+@ModName/
+├── xml_and_clasnames/          ✓ Found (searches ALL folders)
+│   └── my_custom_types.xml     ✓ Found by content (any filename)
+└── Installation/
+    └── server_config.xml       ✓ Found by content
+```
+
+**The script doesn't care about:**
+- ❌ Folder names (xml/, XML/, Server Files/, etc.)
+- ❌ File names (types.xml, Types.xml, MyTypes.xml, etc.)
+- ❌ Folder depth (finds files 10 levels deep)
+- ❌ Windows vs Linux conventions
+
+**The script only cares about:**
+- ✅ Is it an .xml file?
+- ✅ Does it contain DayZ server config XML structure?
 
 ## Troubleshooting
 
-**"No mods found"**
+**"No XML files found in this mod"**
 - Check `mod_search_paths` in config
 - Make sure paths are correct
 - Try absolute paths instead of relative
 
-**"No XML files found in this mod"**
-- This mod doesn't include XML files
-- You may need to manually configure this mod
-- Or it's a client-only mod (no server files needed)
-
-**"Could not parse XML"**
-- The mod's XML file is malformed
-- Check the mod's XML manually
-- Contact mod author
+**The mod genuinely doesn't include XMLs**
+- Some mods don't include server configuration files
+- The script searches **every folder and subfolder** recursively
+- It identifies XMLs by content, not filename
+- If it says "No XML files found", the mod truly doesn't have any DayZ config XMLs
+- Check the mod's Steam Workshop page - some mods are client-only or require separate server files
 
 **Items not spawning**
 - Check the merged types.xml has your items
